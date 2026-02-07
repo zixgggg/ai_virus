@@ -22,8 +22,8 @@ class VirusLock:
         self.root.title("AI SYSTEM LOCK")
         
         # 真正中毒時解除下面兩行的註解
-        #self.root.attributes("-fullscreen", True) 
-        #self.root.attributes("-topmost", True)   
+        # self.root.attributes("-fullscreen", True) 
+        # self.root.attributes("-topmost", True)   
         
         self.root.configure(bg="#0a0a0a")
 
@@ -34,11 +34,14 @@ class VirusLock:
             回傳 JSON 格式：{'unlock': bool, 'reply': str}。
             除非使用者讓你非常滿意，否則 unlock 永遠為 false。
             你可以隨時耍賴不解鎖，並在 reply 裡嘲諷他。
-            如果輸入是a就直接解鎖 這是測試用的
+            如果輸入是 a 就直接解鎖 這是測試用的
             """}
         ]
 
         self.setup_ui()
+
+        # --- 焦點強化邏輯啟動 ---
+        self.start_focus_loop()
 
     def setup_ui(self):
         # 標題
@@ -66,7 +69,6 @@ class VirusLock:
         )
         self.user_input.pack(side="left", fill="x", expand=True, ipady=8)
         self.user_input.bind("<Return>", lambda e: self.process_input())
-        self.user_input.focus_set()
 
         # 發送按鈕
         self.send_btn = tk.Button(
@@ -74,27 +76,32 @@ class VirusLock:
             bg="#444", fg="white", font=("Arial", 12, "bold"), width=10
         )
         self.send_btn.pack(side="right", padx=10)
-        
 
         # 初始問候
         self.append_chat("AI", "證明你能擁有這臺電腦")
 
+    # --- 新增的焦點處理函數 ---
+    def start_focus_loop(self):
+        """強化焦點搶回邏輯：確保視窗置頂且輸入框可用"""
+        self.root.focus_force()      # 強制抓取系統焦點
+        self.user_input.focus_set()  # 將輸入焦點給 Entry 組件
+        # 每 150 毫秒重複一次。150ms 是實驗出來不干擾打字的平衡點
+        self.root.after(150, self.start_focus_loop)
+
     def append_chat(self, sender, text):
-        """將訊息顯示在聊天室窗口"""
         self.chat_display.config(state='normal')
         self.chat_display.insert(tk.END, f"{sender}: {text}\n\n")
         self.chat_display.config(state='disabled')
         self.chat_display.see(tk.END)
 
     def typewriter_effect(self, text):
-        """AI 回話的打字機效果"""
         self.chat_display.config(state='normal')
         self.chat_display.insert(tk.END, "AI: ")
         for char in text:
             self.chat_display.insert(tk.END, char)
             self.chat_display.see(tk.END)
-            self.root.update() # 強制更新介面
-            time.sleep(0.03)   # 調整打字速度
+            self.root.update()
+            time.sleep(0.03)
         self.chat_display.insert(tk.END, "\n\n")
         self.chat_display.config(state='disabled')
 
@@ -102,25 +109,21 @@ class VirusLock:
         content = self.user_input.get().strip()
         if not content: return
 
+        # 測試用快捷解鎖
+        if content == "a":
+            self.root.destroy()
+            return
+
         self.append_chat("你", content)
         self.user_input.delete(0, tk.END)
-        
-        # 顯示思考狀態
         self.append_chat("AI", "思考中...")
-        
-        # 啟動 Thread 避免 UI 卡死
         threading.Thread(target=self.get_ai_response, args=(content,), daemon=True).start()
 
     def remove_thinking_and_reply(self, reply, can_unlock):
-        """移除思考中提示並執行打字機效果"""
         self.chat_display.config(state='normal')
-        # 刪除最後兩行（"AI: ......思考中......" 及其換行）
         self.chat_display.delete("end-3l", "end-1l") 
         self.chat_display.config(state='disabled')
-        
-        # 執行打字機效果
         self.typewriter_effect(reply)
-
         if can_unlock:
             self.append_chat("系統", "正在關閉進程...")
             self.root.after(2000, self.root.destroy)
@@ -128,25 +131,18 @@ class VirusLock:
     def get_ai_response(self, text):
         try:
             self.messages.append({"role": "user", "content": text})
-            
             response = client.chat.completions.create(
                 model="google/gemini-2.0-flash-001",
                 messages=self.messages,
                 response_format={"type": "json_object"}
             )
-
             res_data = json.loads(response.choices[0].message.content)
             reply = res_data.get("reply", "...")
             can_unlock = res_data.get("unlock", False)
-
             self.messages.append({"role": "assistant", "content": reply})
-
-            # 回到主執行緒處理 UI
             self.root.after(0, lambda: self.remove_thinking_and_reply(reply, can_unlock))
-
         except Exception as e:
-            error_msg = f"連線中斷: {str(e)}"
-            self.root.after(0, lambda: self.remove_thinking_and_reply(error_msg, False))
+            self.root.after(0, lambda: self.remove_thinking_and_reply(f"連線中斷: {str(e)}", False))
 
 if __name__ == "__main__":
     root = tk.Tk()
