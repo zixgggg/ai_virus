@@ -58,7 +58,7 @@ class VirusLock:
 
         # 紀錄對話歷史
         self.messages = [
-            {"role": "system", "content": """你是一個佔據使用者電腦的瘋狂 AI。
+            {"role": "system", "content": """你是一個佔據使用者電腦的瘋狂病嬌 AI。
             你必須與使用者玩一個猜謎或邏輯遊戲或者使用者能說服你。
             回傳 JSON 格式：{'unlock': bool, 'reply': str}。
             除非使用者讓你非常滿意，否則 unlock 永遠為 false。
